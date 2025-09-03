@@ -4,6 +4,8 @@ import { signOut } from 'firebase/auth';
 import MarketplaceItemModal from '../components/MarketplaceItemModal';
 import RejectItemModal from '../components/RejectItemModal';
 import RemoveItemModal from '../components/RemoveItemModal';
+import FilterModal from '../components/FilterModal';
+import { logAdminActivity, ACTIVITY_TYPES, ACTIVITY_PAGES } from '../components/AdminActivityLogger';
 import { doc, getDoc, collection, getDocs, query, where, updateDoc, addDoc, onSnapshot, deleteField } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import toast, { Toaster } from 'react-hot-toast';
@@ -19,7 +21,9 @@ import {
   TagIcon,
   CurrencyDollarIcon,
   TrashIcon,
-  ArchiveBoxIcon
+  ArchiveBoxIcon,
+  MagnifyingGlassIcon,
+  FunnelIcon
 } from '@heroicons/react/24/outline';
 
 export default function MarketplaceApproval() {
@@ -39,6 +43,20 @@ export default function MarketplaceApproval() {
   const [rejectFromApprovedModalOpen, setRejectFromApprovedModalOpen] = useState(false);
   const [itemToRemove, setItemToRemove] = useState(null);
   const [itemToRejectFromApproved, setItemToRejectFromApproved] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+const [filteredPendingItems, setFilteredPendingItems] = useState([]);
+const [filteredAvailableItems, setFilteredAvailableItems] = useState([]);
+const [filterModalOpen, setFilterModalOpen] = useState(false);
+const [appliedFilters, setAppliedFilters] = useState({
+  category: '',
+  priceMin: '',
+  priceMax: '',
+  location: '',
+  dateFrom: '',
+  dateTo: '',
+  sellerName: ''
+});
+const [hasActiveFilters, setHasActiveFilters] = useState(false);
 
   useEffect(() => {
     checkAdminAuth();
@@ -75,6 +93,87 @@ export default function MarketplaceApproval() {
       router.push('/');
     }
   };
+
+ // Search and filter effect
+useEffect(() => {
+  const filterAndSearchItems = (items, searchTerm, filters) => {
+    let filteredItems = items;
+
+    // Apply filters first
+    if (filters.category) {
+      filteredItems = filteredItems.filter(item => 
+        item.category && item.category.toLowerCase().includes(filters.category.toLowerCase())
+      );
+    }
+
+    if (filters.priceMin || filters.priceMax) {
+      filteredItems = filteredItems.filter(item => {
+        const price = parseFloat(item.price) || 0;
+        const minPrice = parseFloat(filters.priceMin) || 0;
+        const maxPrice = parseFloat(filters.priceMax) || Infinity;
+        return price >= minPrice && price <= maxPrice;
+      });
+    }
+
+    if (filters.location) {
+      filteredItems = filteredItems.filter(item => 
+        item.location && item.location.toLowerCase().includes(filters.location.toLowerCase())
+      );
+    }
+
+    if (filters.sellerName) {
+      filteredItems = filteredItems.filter(item => 
+        item.sellerName && item.sellerName.toLowerCase().includes(filters.sellerName.toLowerCase())
+      );
+    }
+
+    if (filters.dateFrom || filters.dateTo) {
+      filteredItems = filteredItems.filter(item => {
+        if (!item.postedAt) return false;
+        
+        let itemDate;
+        try {
+          if (typeof item.postedAt === 'number') {
+            itemDate = new Date(item.postedAt);
+          } else if (item.postedAt.toDate && typeof item.postedAt.toDate === 'function') {
+            itemDate = new Date(item.postedAt.toDate());
+          } else {
+            itemDate = new Date(item.postedAt);
+          }
+          
+          const fromDate = filters.dateFrom ? new Date(filters.dateFrom) : null;
+          const toDate = filters.dateTo ? new Date(filters.dateTo + 'T23:59:59') : null;
+          
+          if (fromDate && itemDate < fromDate) return false;
+          if (toDate && itemDate > toDate) return false;
+          
+          return true;
+        } catch (error) {
+          return false;
+        }
+      });
+    }
+
+    // Then apply search filter
+    if (searchTerm.trim()) {
+      const lowercaseSearch = searchTerm.toLowerCase().trim();
+      filteredItems = filteredItems.filter(item => 
+        (item.productName && item.productName.toLowerCase().includes(lowercaseSearch)) ||
+        (item.sellerName && item.sellerName.toLowerCase().includes(lowercaseSearch)) ||
+        (item.category && item.category.toLowerCase().includes(lowercaseSearch)) ||
+        (item.location && item.location.toLowerCase().includes(lowercaseSearch)) ||
+        (item.description && item.description.toLowerCase().includes(lowercaseSearch)) ||
+        (item.tags && item.tags.some(tag => tag.toLowerCase().includes(lowercaseSearch))) ||
+        (item.price && item.price.toString().includes(lowercaseSearch))
+      );
+    }
+
+    return filteredItems;
+  };
+
+  setFilteredPendingItems(filterAndSearchItems(pendingItems, searchTerm, appliedFilters));
+  setFilteredAvailableItems(filterAndSearchItems(availableItems, searchTerm, appliedFilters));
+}, [pendingItems, availableItems, searchTerm, appliedFilters]);
 
   const fetchMarketplaceItems = async () => {
     try {
@@ -118,43 +217,60 @@ export default function MarketplaceApproval() {
     }
   };
 
+
   const handleApprove = async (itemId) => {
-    setProcessingItems(prev => new Set(prev).add(itemId));
-    
-    try {
-      await updateDoc(doc(db, 'marketplaceItems', itemId), {
-        status: 'available',
-        approvedAt: new Date(),
-        approvedBy: adminData?.email || 'admin'
+  setProcessingItems(prev => new Set(prev).add(itemId));
+  
+  try {
+    await updateDoc(doc(db, 'marketplaceItems', itemId), {
+      status: 'available',
+      approvedAt: new Date(),
+      approvedBy: adminData?.email || 'admin'
+    });
+
+    // Create notification for the seller
+    const approvedItem = pendingItems.find(item => item.id === itemId);
+    if (approvedItem) {
+      await addDoc(collection(db, 'marketplaceItemsNotifications'), {
+        userId: approvedItem.sellerId,
+        itemId: itemId,
+        productName: approvedItem.productName,
+        status: 'approved',
+        message: 'Your item has been approved and is now available in the marketplace.',
+        timestamp: new Date(),
+        isRead: false
       });
 
-      // Create notification for the seller
-      const approvedItem = pendingItems.find(item => item.id === itemId);
-      if (approvedItem) {
-        await addDoc(collection(db, 'marketplaceItemsNotifications'), {
-          userId: approvedItem.sellerId,
+      // Log admin activity
+      await logAdminActivity({
+        activityType: ACTIVITY_TYPES.MARKETPLACE_ITEM_APPROVED,
+        page: ACTIVITY_PAGES.MARKETPLACE_APPROVAL,
+        details: {
           itemId: itemId,
           productName: approvedItem.productName,
-          status: 'approved',
-          message: 'Your item has been approved and is now available in the marketplace.',
-          timestamp: new Date(),
-          isRead: false
-        });
-      }
-      
-      toast.success('Item approved successfully');
-      // Remove manual state updates - realtime listeners will handle this automatically
-    } catch (error) {
-      console.error('Error approving item:', error);
-      toast.error('Error approving item');
-    } finally {
-      setProcessingItems(prev => {
-        const newSet = new Set(prev);
-        newSet.delete(itemId);
-        return newSet;
+          sellerId: approvedItem.sellerId,
+          sellerName: approvedItem.sellerName,
+          category: approvedItem.category,
+          price: approvedItem.price
+        },
+        description: `Approved marketplace item: ${approvedItem.productName}`
       });
     }
-  };
+    
+    toast.success('Item approved successfully');
+  } catch (error) {
+    console.error('Error approving item:', error);
+    toast.error('Error approving item');
+  } finally {
+    setProcessingItems(prev => {
+      const newSet = new Set(prev);
+      newSet.delete(itemId);
+      return newSet;
+    });
+  }
+};
+
+
 
   const handleReject = async (itemId, rejectionMessage) => {
   setProcessingItems(prev => new Set(prev).add(itemId));
@@ -190,6 +306,22 @@ export default function MarketplaceApproval() {
         timestamp: new Date(),
         isRead: false
       });
+
+      // Log admin activity
+      await logAdminActivity({
+        activityType: ACTIVITY_TYPES.MARKETPLACE_ITEM_REJECTED,
+        page: ACTIVITY_PAGES.MARKETPLACE_APPROVAL,
+        details: {
+          itemId: itemId,
+          productName: rejectedItem.productName,
+          sellerId: rejectedItem.sellerId,
+          sellerName: rejectedItem.sellerName,
+          rejectionReason: rejectionMessage,
+          category: rejectedItem.category,
+          price: rejectedItem.price
+        },
+        description: `Rejected marketplace item: ${rejectedItem.productName}`
+      });
     }
     
     toast.success('Item rejected successfully');
@@ -204,6 +336,8 @@ export default function MarketplaceApproval() {
     });
   }
 };
+
+
 
   const handleRemoveItem = async (itemId, removalMessage) => {
   setProcessingItems(prev => new Set(prev).add(itemId));
@@ -233,6 +367,22 @@ export default function MarketplaceApproval() {
         timestamp: new Date(),
         isRead: false
       });
+
+      // Log admin activity
+      await logAdminActivity({
+        activityType: ACTIVITY_TYPES.MARKETPLACE_ITEM_REMOVED,
+        page: ACTIVITY_PAGES.MARKETPLACE_APPROVAL,
+        details: {
+          itemId: itemId,
+          productName: removedItem.productName,
+          sellerId: removedItem.sellerId,
+          sellerName: removedItem.sellerName,
+          removalReason: removalMessage,
+          category: removedItem.category,
+          price: removedItem.price
+        },
+        description: `Removed marketplace item: ${removedItem.productName}`
+      });
     }
     
     toast.success('Item removed from marketplace');
@@ -247,6 +397,7 @@ export default function MarketplaceApproval() {
     });
   }
 };
+
 
   const handleRejectFromApproved = async (itemId, rejectionMessage) => {
   setProcessingItems(prev => new Set(prev).add(itemId));
@@ -275,6 +426,23 @@ export default function MarketplaceApproval() {
         message: `Sorry for the late notice. After further review, your previously approved item has been rejected. Reason: ${rejectionMessage}`,
         timestamp: new Date(),
         isRead: false
+      });
+
+      // Log admin activity
+      await logAdminActivity({
+        activityType: ACTIVITY_TYPES.MARKETPLACE_ITEM_REJECTED,
+        page: ACTIVITY_PAGES.MARKETPLACE_APPROVAL,
+        details: {
+          itemId: itemId,
+          productName: rejectedItem.productName,
+          sellerId: rejectedItem.sellerId,
+          sellerName: rejectedItem.sellerName,
+          rejectionReason: rejectionMessage,
+          category: rejectedItem.category,
+          price: rejectedItem.price,
+          wasApproved: true // Flag to indicate this was previously approved
+        },
+        description: `Rejected previously approved item: ${rejectedItem.productName}`
       });
     }
     
@@ -321,6 +489,37 @@ export default function MarketplaceApproval() {
     setRejectFromApprovedModalOpen(false);
   };
 
+  const openFilterModal = () => {
+  setFilterModalOpen(true);
+};
+
+const closeFilterModal = () => {
+  setFilterModalOpen(false);
+};
+
+const handleApplyFilter = (filters) => {
+  setAppliedFilters(filters);
+  
+  // Check if any filter has a value
+  const hasFilters = Object.values(filters).some(value => value !== '');
+  setHasActiveFilters(hasFilters);
+};
+
+const handleClearAllFilters = () => {
+  const clearedFilters = {
+    category: '',
+    priceMin: '',
+    priceMax: '',
+    location: '',
+    dateFrom: '',
+    dateTo: '',
+    sellerName: ''
+  };
+  setAppliedFilters(clearedFilters);
+  setHasActiveFilters(false);
+  setSearchTerm('');
+};
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -363,86 +562,64 @@ export default function MarketplaceApproval() {
   };
 
   const ItemCard = ({ item }) => (
-    <div 
-      className="bg-white border border-gray-200 rounded-lg p-6 hover:shadow-md transition-shadow duration-200 cursor-pointer"
-      onClick={() => handleItemClick(item)}
-    >
-      <div className="flex gap-6">
-        {/* Image */}
+  <div 
+    className="bg-white border border-gray-200 rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow duration-200 cursor-pointer"
+    onClick={() => handleItemClick(item)}
+  >
+    {/* Mobile Layout (stacked) */}
+    <div className="flex flex-col sm:hidden space-y-3">
+      {/* Top row - Image and basic info */}
+      <div className="flex items-center space-x-3">
         <div className="flex-shrink-0">
           {item.imageUrls && item.imageUrls.length > 0 ? (
             <Image
               src={item.imageUrls[0]}
               alt={item.productName || 'Product'}
-              width={120}
-              height={120}
+              width={50}
+              height={50}
               className="rounded-lg object-cover"
             />
           ) : (
-            <div className="w-30 h-30 bg-gray-200 rounded-lg flex items-center justify-center">
-              <span className="text-gray-400 text-sm">No Image</span>
+            <div className="w-12 h-12 bg-gray-200 rounded-lg flex items-center justify-center">
+              <span className="text-gray-400 text-xs">No Image</span>
             </div>
           )}
         </div>
-
-        {/* Content */}
-        <div className="flex-1">
-          <h3 className="text-lg font-semibold text-gray-900 mb-2">
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900 truncate">
             {item.productName || 'Unavailable'}
           </h3>
-          
-          <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
-            <div className="flex items-center">
-              <CurrencyDollarIcon className="h-4 w-4 mr-1" />
-              <span>₱{item.price || 'Unavailable'}</span>
-            </div>
-            <div className="flex items-center">
-              <TagIcon className="h-4 w-4 mr-1" />
-              <span>{item.category || 'Unavailable'}</span>
-            </div>
-            <div className="flex items-center">
-              <MapPinIcon className="h-4 w-4 mr-1" />
-              <span>{item.location || 'Unavailable'}</span>
-            </div>
-            <div className="flex items-center">
-              <ClockIcon className="h-4 w-4 mr-1" />
-              <span>{formatDate(item.postedAt)}</span>
-            </div>
-          </div>
+          <p className="text-xs text-gray-600 truncate">
+            <span className="font-medium">Seller:</span> {item.sellerName || 'Unavailable'}
+          </p>
+        </div>
+      </div>
 
-          <div className="mb-4">
-            <p className="text-sm text-gray-600">
-              <span className="font-medium">Seller:</span> {item.sellerName || 'Unavailable'}
-            </p>
-            <p className="text-sm text-gray-600 mt-1">
-              <span className="font-medium">Description:</span> {item.description || 'No description provided'}
-            </p>
-          </div>
-
-          {/* Tags */}
-          {item.tags && item.tags.length > 0 && (
-            <div className="flex flex-wrap gap-1 mb-4">
-              {item.tags.map((tag, index) => (
-                <span key={index} className="px-2 py-1 bg-gray-100 text-gray-700 text-xs rounded">
-                  {tag}
-                </span>
-              ))}
-            </div>
-          )}
-
-          {/* Actions for pending items */}
+      {/* Bottom row - Category, Date, and Actions */}
+      <div className="flex items-center justify-between">
+        <div className="flex flex-col space-y-1 text-xs text-gray-600 flex-1 min-w-0">
+          <span className="truncate">
+            <span className="font-medium">Category:</span> {item.category || 'Unavailable'}
+          </span>
+          <span className="truncate">
+            <span className="font-medium">Date:</span> {formatDate(item.postedAt)}
+          </span>
+        </div>
+        
+        {/* Mobile Action buttons */}
+        <div className="flex flex-col space-y-1 ml-2">
           {activeTab === 'pending' && (
-            <div className="flex gap-3">
+            <>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   handleApprove(item.id);
                 }}
                 disabled={processingItems.has(item.id)}
-                className="flex items-center px-4 py-2 bg-green-500 hover:bg-green-600 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50"
+                className="flex items-center justify-center px-2 py-1 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded transition-colors duration-200 disabled:opacity-50 min-w-16"
               >
-                <CheckCircleIcon className="h-4 w-4 mr-1" />
-                {processingItems.has(item.id) ? 'Approving...' : 'Approve'}
+                <CheckCircleIcon className="h-3 w-3 mr-1" />
+                {processingItems.has(item.id) ? 'Wait...' : 'Approve'}
               </button>
               <button
                 onClick={(e) => {
@@ -450,27 +627,26 @@ export default function MarketplaceApproval() {
                   openRejectModal(item);
                 }}
                 disabled={processingItems.has(item.id)}
-                className="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50"
+                className="flex items-center justify-center px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded transition-colors duration-200 disabled:opacity-50 min-w-16"
               >
-                <XCircleIcon className="h-4 w-4 mr-1" />
-                {processingItems.has(item.id) ? 'Rejecting...' : 'Reject'}
+                <XCircleIcon className="h-3 w-3 mr-1" />
+                {processingItems.has(item.id) ? 'Wait...' : 'Reject'}
               </button>
-            </div>
+            </>
           )}
 
-          {/* Actions for available/approved items */}
           {activeTab === 'available' && (
-            <div className="flex gap-3">
+            <>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
                   openRemoveModal(item);
                 }}
                 disabled={processingItems.has(item.id)}
-                className="flex items-center px-4 py-2 bg-orange-500 hover:bg-orange-600 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50"
+                className="flex items-center justify-center px-2 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded transition-colors duration-200 disabled:opacity-50 min-w-16"
               >
-                <TrashIcon className="h-4 w-4 mr-1" />
-                {processingItems.has(item.id) ? 'Removing...' : 'Remove'}
+                <TrashIcon className="h-3 w-3 mr-1" />
+                {processingItems.has(item.id) ? 'Wait...' : 'Remove'}
               </button>
               <button
                 onClick={(e) => {
@@ -478,17 +654,118 @@ export default function MarketplaceApproval() {
                   openRejectFromApprovedModal(item);
                 }}
                 disabled={processingItems.has(item.id)}
-                className="flex items-center px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-medium rounded-lg transition-colors duration-200 disabled:opacity-50"
+                className="flex items-center justify-center px-2 py-1 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded transition-colors duration-200 disabled:opacity-50 min-w-16"
               >
-                <XCircleIcon className="h-4 w-4 mr-1" />
-                {processingItems.has(item.id) ? 'Rejecting...' : 'Reject'}
+                <XCircleIcon className="h-3 w-3 mr-1" />
+                {processingItems.has(item.id) ? 'Wait...' : 'Reject'}
               </button>
-            </div>
+            </>
           )}
         </div>
       </div>
     </div>
-  );
+
+    {/* Desktop/Tablet Layout (horizontal) */}
+    <div className="hidden sm:flex items-center justify-between">
+      {/* Left side - Item details */}
+      <div className="flex items-center space-x-4 flex-1">
+        {/* Image */}
+        <div className="flex-shrink-0">
+          {item.imageUrls && item.imageUrls.length > 0 ? (
+            <Image
+              src={item.imageUrls[0]}
+              alt={item.productName || 'Product'}
+              width={60}
+              height={60}
+              className="rounded-lg object-cover"
+            />
+          ) : (
+            <div className="w-15 h-15 bg-gray-200 rounded-lg flex items-center justify-center">
+              <span className="text-gray-400 text-xs">No Image</span>
+            </div>
+          )}
+        </div>
+
+        {/* Product Details */}
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-semibold text-gray-900 truncate">
+            {item.productName || 'Unavailable'}
+          </h3>
+          <div className="flex items-center space-x-4 text-xs text-gray-600 mt-1">
+            <span className="truncate">
+              <span className="font-medium">Seller:</span> {item.sellerName || 'Unavailable'}
+            </span>
+            <span className="truncate">
+              <span className="font-medium">Category:</span> {item.category || 'Unavailable'}
+            </span>
+            <span className="flex-shrink-0">
+              <span className="font-medium">Date:</span> {formatDate(item.postedAt)}
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Right side - Action buttons */}
+      <div className="flex items-center space-x-2 ml-4">
+        {/* Actions for pending items */}
+        {activeTab === 'pending' && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleApprove(item.id);
+              }}
+              disabled={processingItems.has(item.id)}
+              className="flex items-center px-3 py-2 bg-green-500 hover:bg-green-600 text-white text-xs font-medium rounded-lg transition-colors duration-200 disabled:opacity-50"
+            >
+              <CheckCircleIcon className="h-3 w-3 mr-1" />
+              {processingItems.has(item.id) ? 'Approving...' : 'Approve'}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openRejectModal(item);
+              }}
+              disabled={processingItems.has(item.id)}
+              className="flex items-center px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors duration-200 disabled:opacity-50"
+            >
+              <XCircleIcon className="h-3 w-3 mr-1" />
+              {processingItems.has(item.id) ? 'Rejecting...' : 'Reject'}
+            </button>
+          </>
+        )}
+
+        {/* Actions for available/approved items */}
+        {activeTab === 'available' && (
+          <>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openRemoveModal(item);
+              }}
+              disabled={processingItems.has(item.id)}
+              className="flex items-center px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors duration-200 disabled:opacity-50"
+            >
+              <TrashIcon className="h-3 w-3 mr-1" />
+              {processingItems.has(item.id) ? 'Removing...' : 'Remove'}
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                openRejectFromApprovedModal(item);
+              }}
+              disabled={processingItems.has(item.id)}
+              className="flex items-center px-3 py-2 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-lg transition-colors duration-200 disabled:opacity-50"
+            >
+              <XCircleIcon className="h-3 w-3 mr-1" />
+              {processingItems.has(item.id) ? 'Rejecting...' : 'Reject'}
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  </div>
+);
 
   if (isLoading) {
     return (
@@ -560,61 +837,174 @@ export default function MarketplaceApproval() {
         </div>
       </header>
 
+      {/* Search Bar and Filter */}
+<div className="mb-6">
+  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+    <div className="flex gap-4 items-center justify-center">
+      {/* Search Input */}
+      <div className="relative flex-2 max-w-md sm:max-w-xl">
+        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+        </div>
+        <input
+          type="text"
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          placeholder="Search..."
+          className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-700 text-sm sm:text-base"
+        />
+        {searchTerm && (
+          <button
+            onClick={() => setSearchTerm('')}
+            className="absolute inset-y-0 right-0 pr-3 flex items-center"
+          >
+            <XCircleIcon className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors duration-200" />
+          </button>
+        )}
+      </div>
+
+      {/* Filter Button */}
+      <button
+        onClick={openFilterModal}
+        className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
+          hasActiveFilters
+            ? 'bg-green-500 text-white hover:bg-green-600'
+            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        }`}
+      >
+        <FunnelIcon className="h-5 w-5 mr-2" />
+        Filter
+        {hasActiveFilters && (
+          <span className="ml-2 bg-white text-green-600 text-xs px-2 py-1 rounded-full">
+            Active
+          </span>
+        )}
+      </button>
+
+      {/* Clear All Filters Button */}
+      {(hasActiveFilters || searchTerm) && (
+        <button
+          onClick={handleClearAllFilters}
+          className="px-4 py-3 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors duration-200"
+        >
+          Clear All
+        </button>
+      )}
+    </div>
+
+    {/* Search/Filter Results Info */}
+    {(searchTerm || hasActiveFilters) && (
+      <div className="mt-3 text-center">
+        <p className="text-sm text-gray-600">
+          {activeTab === 'pending' 
+            ? `Found ${filteredPendingItems.length} pending item${filteredPendingItems.length !== 1 ? 's' : ''}`
+            : `Found ${filteredAvailableItems.length} approved item${filteredAvailableItems.length !== 1 ? 's' : ''}`
+          }
+          {searchTerm && ` matching "${searchTerm}"`}
+          {hasActiveFilters && ` with applied filters`}
+        </p>
+      </div>
+    )}
+  </div>
+</div>
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* Tabs */}
-        <div className="mb-6">
-          <div className="border-b border-gray-200">
-            <nav className="-mb-px flex space-x-8">
-              <button
-                onClick={() => setActiveTab('pending')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'pending'
-                    ? 'border-green-500 text-green-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Pending ({pendingItems.length})
-              </button>
-              <button
-                onClick={() => setActiveTab('available')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === 'available'
-                    ? 'border-green-500 text-green-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                Approved ({availableItems.length})
-              </button>
-            </nav>
-          </div>
-        </div>
+<div className="mb-6">
+  <div className="border-b border-gray-200">
+    <nav className="-mb-px flex space-x-8">
+      <button
+        onClick={() => setActiveTab('pending')}
+        className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+          activeTab === 'pending'
+            ? 'border-green-500 text-green-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+        }`}
+      >
+        Pending ({searchTerm ? filteredPendingItems.length : pendingItems.length})
+      </button>
+      <button
+        onClick={() => setActiveTab('available')}
+        className={`py-2 px-1 border-b-2 font-medium text-sm whitespace-nowrap ${
+          activeTab === 'available'
+            ? 'border-green-500 text-green-600'
+            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+        }`}
+      >
+        Approved ({searchTerm ? filteredAvailableItems.length : availableItems.length})
+      </button>
+    </nav>
+  </div>
+</div>
 
-        {/* Items Grid */}
-        <div className="space-y-6">
-          {activeTab === 'pending' ? (
-            pendingItems.length > 0 ? (
-              pendingItems.map((item) => (
-                <ItemCard key={item.id} item={item} />
-              ))
+       {/* Items Grid */}
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="max-h-[600px] overflow-y-auto space-y-3">
+            {activeTab === 'pending' ? (
+              ((searchTerm || hasActiveFilters) ? filteredPendingItems : pendingItems).length > 0 ? (
+                ((searchTerm || hasActiveFilters) ? filteredPendingItems : pendingItems).map((item) => (
+                  <ItemCard key={item.id} item={item} />
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  {(searchTerm || hasActiveFilters) ? (
+                    <>
+                      <MagnifyingGlassIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">
+                        No pending items found
+                        {searchTerm && ` for "${searchTerm}"`}
+                        {hasActiveFilters && !searchTerm && " with applied filters"}
+                        {hasActiveFilters && searchTerm && " with current search and filters"}
+                      </p>
+                      <button
+                        onClick={handleClearAllFilters}
+                        className="mt-2 text-sm text-green-600 hover:text-green-800 underline"
+                      >
+                        Clear search and filters
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircleIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">No pending items to review</p>
+                    </>
+                  )}
+                </div>
+              )
             ) : (
-              <div className="text-center py-12">
-                <CheckCircleIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No pending items to review</p>
-              </div>
-            )
-          ) : (
-            availableItems.length > 0 ? (
-              availableItems.map((item) => (
-                <ItemCard key={item.id} item={item} />
-              ))
-            ) : (
-              <div className="text-center py-12">
-                <TagIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">No available items</p>
-              </div>
-            )
-          )}
+              ((searchTerm || hasActiveFilters) ? filteredAvailableItems : availableItems).length > 0 ? (
+                ((searchTerm || hasActiveFilters) ? filteredAvailableItems : availableItems).map((item) => (
+                  <ItemCard key={item.id} item={item} />
+                ))
+              ) : (
+                <div className="text-center py-12">
+                  {(searchTerm || hasActiveFilters) ? (
+                    <>
+                      <MagnifyingGlassIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">
+                        No approved items found
+                        {searchTerm && ` for "${searchTerm}"`}
+                        {hasActiveFilters && !searchTerm && " with applied filters"}
+                        {hasActiveFilters && searchTerm && " with current search and filters"}
+                      </p>
+                      <button
+                        onClick={handleClearAllFilters}
+                        className="mt-2 text-sm text-green-600 hover:text-green-800 underline"
+                      >
+                        Clear search and filters
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <TagIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">No available items</p>
+                    </>
+                  )}
+                </div>
+              )
+            )}
+          </div>
         </div>
       </main>
 
@@ -645,6 +1035,13 @@ export default function MarketplaceApproval() {
         onClose={closeRejectFromApprovedModal}
         onReject={handleRejectFromApproved}
       />
+      {/* Filter Modal */}
+<FilterModal
+  isOpen={filterModalOpen}
+  onClose={closeFilterModal}
+  onApplyFilter={handleApplyFilter}
+  currentFilters={appliedFilters}
+/>
     </div>
   );
 }
