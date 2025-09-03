@@ -236,9 +236,12 @@ export default function AdminDashboard() {
               <DocumentCheckIcon className="h-12 w-12 text-green-500 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">Marketplace Approval</h3>
               <p className="text-gray-600 mb-4">Approve pending marketplace posts</p>
-              <button className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors duration-200">
-                Approve Posts
-              </button>
+              <button 
+  onClick={() => router.push('/marketplace-approval')}
+  className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+>
+  Approve Posts
+</button>
             </div>
           </div>
         </div>

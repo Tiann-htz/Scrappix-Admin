@@ -5,6 +5,7 @@ import { signInWithEmailAndPassword } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import toast, { Toaster } from 'react-hot-toast';
+import Image from 'next/image';
 import { 
   EyeIcon, 
   EyeSlashIcon, 
@@ -121,8 +122,15 @@ export default function AdminLogin() {
       <div className="max-w-md w-full space-y-8">
         {/* Header */}
         <div className="text-center">
-          <div className="mx-auto h-16 w-16 bg-green-500 rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow duration-300">
-            <ShieldCheckIcon className="h-10 w-10 text-white" />
+          <div className="mx-auto h-16 w-16 bg-white rounded-full flex items-center justify-center shadow-lg hover:shadow-xl transition-shadow duration-300 p-2">
+            <Image
+              src="/Logo/scrappix_logo.png"
+              alt="Scrappix Logo"
+              width={48}
+              height={48}
+              className="object-contain"
+              priority
+            />
           </div>
           <h2 className="mt-6 text-3xl font-bold text-green-800">
             Scrappix Admin
