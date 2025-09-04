@@ -5,7 +5,7 @@ import MarketplaceItemModal from '../components/MarketplaceItemModal';
 import RejectItemModal from '../components/RejectItemModal';
 import RemoveItemModal from '../components/RemoveItemModal';
 import FilterModal from '../components/FilterModal';
-import { logAdminActivity, ACTIVITY_TYPES, ACTIVITY_PAGES } from '../components/AdminActivityLogger';
+import { logAdminActivity, ACTIVITY_TYPES, ACTIVITY_PAGES } from '../utils/AdminActivityLogger';
 import { doc, getDoc, collection, getDocs, query, where, updateDoc, addDoc, onSnapshot, deleteField } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import toast, { Toaster } from 'react-hot-toast';

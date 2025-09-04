@@ -3,7 +3,7 @@ import { useRouter } from 'next/router';
 import { signOut } from 'firebase/auth';
 import MarketplaceItemModal from '../components/MarketplaceItemModal';
 import FilterModal from '../components/FilterModal';
-import { logAdminActivity, ACTIVITY_TYPES, ACTIVITY_PAGES } from '../components/AdminActivityLogger';
+import { logAdminActivity, ACTIVITY_TYPES, ACTIVITY_PAGES } from '../utils/AdminActivityLogger';
 import { doc, getDoc, collection, query, where, deleteDoc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import toast, { Toaster } from 'react-hot-toast';
