@@ -2,14 +2,13 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
 import { signInWithEmailAndPassword } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
+import { auth } from '../lib/firebase';
 import toast, { Toaster } from 'react-hot-toast';
 import Image from 'next/image';
 import { 
   EyeIcon, 
   EyeSlashIcon, 
-  ShieldCheckIcon,
   ExclamationTriangleIcon 
 } from '@heroicons/react/24/outline';
 
@@ -20,25 +19,13 @@ export default function AdminLogin() {
   const [isLoading, setIsLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
   const router = useRouter();
+  const { user, loading: authLoading } = useAuth();
 
   useEffect(() => {
-    // Check if user is already logged in and is admin
-    const unsubscribe = auth.onAuthStateChanged(async (user) => {
-      if (user) {
-        try {
-          // Check in userAdmin collection using user UID
-          const adminDoc = await getDoc(doc(db, 'userAdmin', user.uid));
-          if (adminDoc.exists() && adminDoc.data().role === 'admin') {
-            router.push('/dashboard');
-          }
-        } catch (error) {
-          console.error('Error checking user role:', error);
-        }
-      }
-    });
-
-    return () => unsubscribe();
-  }, [router]);
+    if (!authLoading && user) {
+      router.push('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -52,28 +39,9 @@ export default function AdminLogin() {
     
     try {
       // Sign in with Firebase Auth
-      const userCredential = await signInWithEmailAndPassword(auth, email, password);
-      const user = userCredential.user;
-
-      // Check if user is admin in userAdmin collection using user UID
-      const adminDoc = await getDoc(doc(db, 'userAdmin', user.uid));
-      
-      if (!adminDoc.exists()) {
-        await auth.signOut();
-        toast.error('Admin account not found');
-        return;
-      }
-
-      const adminData = adminDoc.data();
-      
-      if (adminData.role !== 'admin' || !adminData.isActive) {
-        await auth.signOut();
-        toast.error('Access denied. Admin privileges required or account inactive.');
-        return;
-      }
-
+      await signInWithEmailAndPassword(auth, email, password);
+      // The AuthContext will handle the rest automatically
       toast.success('Welcome back, Admin!');
-      router.push('/dashboard');
       
     } catch (error) {
       console.error('Login error:', error);
@@ -249,25 +217,12 @@ export default function AdminLogin() {
           </div>
         </div>
 
-        {/* Additional Security Info */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-          <div className="flex items-start">
-            <ShieldCheckIcon className="h-5 w-5 text-blue-600 mt-0.5 flex-shrink-0" />
-            <div className="ml-3">
-              <h3 className="text-sm font-medium text-blue-800">
-                Secure Connection
-              </h3>
-              <p className="mt-1 text-sm text-blue-700">
-                Your connection is encrypted and secure. Admin sessions are automatically logged for audit purposes.
-              </p>
-            </div>
-          </div>
-        </div>
+        
 
         {/* Footer */}
         <div className="text-center">
           <p className="text-xs text-gray-500">
-            © 2024 Scrappix Admin Dashboard. All rights reserved.
+            © 2025 Scrappix Admin Dashboard. All rights reserved.
           </p>
           <p className="text-xs text-gray-400 mt-1">
             Powered by AI-driven sustainability solutions

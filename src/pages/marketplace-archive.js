@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { signOut } from 'firebase/auth';
+import { useAuth } from '../contexts/AuthContext';
 import MarketplaceItemModal from '../components/MarketplaceItemModal';
 import FilterModal from '../components/FilterModal';
 import { logAdminActivity, ACTIVITY_TYPES, ACTIVITY_PAGES } from '../utils/AdminActivityLogger';
@@ -24,8 +24,7 @@ MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline';
 
 export default function MarketplaceArchive() {
-  const [adminData, setAdminData] = useState(null);
-  const [rejectedItems, setRejectedItems] = useState([]);
+  const { user, adminData, loading: authLoading, signOut } = useAuth();  const [rejectedItems, setRejectedItems] = useState([]);
   const [removedItems, setRemovedItems] = useState([]);
   const [activeTab, setActiveTab] = useState('rejected');
   const [isLoading, setIsLoading] = useState(true);
@@ -50,9 +49,15 @@ const [appliedFilters, setAppliedFilters] = useState({
 const [hasActiveFilters, setHasActiveFilters] = useState(false);
 
   useEffect(() => {
-    checkAdminAuth();
+  if (!authLoading && !user) {
+    router.push('/');
+    return;
+  }
+  
+  if (user && adminData) {
     fetchArchivedItems();
-  }, []);
+  }
+}, [user, adminData, authLoading, router]);
 
   // Cleanup listeners on component unmount
   useEffect(() => {
@@ -254,15 +259,15 @@ useEffect(() => {
 };
 
   const handleLogout = async () => {
-    try {
-      await signOut(auth);
-      toast.success('Logged out successfully');
-      router.push('/');
-    } catch (error) {
-      console.error('Error signing out:', error);
-      toast.error('Error logging out');
-    }
-  };
+  try {
+    await signOut();
+    toast.success('Logged out successfully');
+    router.push('/');
+  } catch (error) {
+    console.error('Error signing out:', error);
+    toast.error('Error logging out');
+  }
+};
 
   const handleItemClick = (item) => {
     setSelectedItem(item);
@@ -550,7 +555,7 @@ const handleClearAllFilters = () => {
   </div>
 );
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">

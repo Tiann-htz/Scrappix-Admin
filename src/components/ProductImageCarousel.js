@@ -91,40 +91,7 @@ export default function ProductImageCarousel({ images, productName, className = 
         )}
       </div>
 
-      {/* Thumbnail Navigation (only show if multiple images) */}
-      {images.length > 1 && (
-        <div className="flex space-x-2 mt-3 overflow-x-auto pb-2">
-          {images.map((image, index) => (
-            <button
-              key={index}
-              onClick={(e) => {
-                e.stopPropagation();
-                setCurrentImageIndex(index);
-              }}
-              className={`flex-shrink-0 w-16 h-16 rounded border-2 overflow-hidden transition-all duration-200 relative ${
-                index === currentImageIndex 
-                  ? 'border-green-500 opacity-100' 
-                  : 'border-gray-300 opacity-60 hover:opacity-80'
-              }`}
-            >
-              {imageError[index] ? (
-                <div className="w-full h-full bg-gray-100 flex items-center justify-center">
-                  <PhotoIcon className="h-6 w-6 text-gray-400" />
-                </div>
-              ) : (
-                <Image
-                  src={image} 
-                  alt={`${productName} thumbnail ${index + 1}`}
-                  fill
-                  className="object-cover"
-                  onError={() => handleImageError(index)}
-                  sizes="64px"
-                />
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+    
     </div>
   );
 }

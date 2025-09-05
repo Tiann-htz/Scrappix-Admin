@@ -1,8 +1,9 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { signOut } from 'firebase/auth';
 import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
+import { logAdminActivity, ACTIVITY_TYPES } from '../utils/AdminActivityLogger';
 import ChatReportItem from '../components/ChatReportItem';
 import ChatRemovalItem from '../components/ChatRemovalItem';
 import ReportsModal from '../components/ReportsModal';
@@ -17,7 +18,7 @@ import {
 } from '@heroicons/react/24/outline';
 
 export default function ReportsApproval() {
-  const [adminData, setAdminData] = useState(null);
+const { user, adminData, loading: authLoading, signOut } = useAuth();
   const [activeTab, setActiveTab] = useState('reports');
   const [chatReports, setChatReports] = useState([]);
   const [chatRemovals, setChatRemovals] = useState([]);
@@ -26,13 +27,20 @@ export default function ReportsApproval() {
   const [removalsLoading, setRemovalsLoading] = useState(true);
   const router = useRouter();
   const [selectedItem, setSelectedItem] = useState(null);
-  const [modalType, setModalType] = useState(''); // 'report' or 'removal'
+  const [modalType, setModalType] = useState('');
 
-  useEffect(() => {
-    checkAdminAuth();
+ useEffect(() => {
+  if (!authLoading && !user) {
+    router.push('/');
+    return;
+  }
+  
+  if (user && adminData) {
     fetchChatReports();
     fetchChatRemovals();
-  }, []);
+    setIsLoading(false);
+  }
+}, [user, adminData, authLoading, router]);
 
   const checkAdminAuth = async () => {
     const user = auth.currentUser;
@@ -186,6 +194,17 @@ const fetchProductImages = async (productId) => {
     setModalType('');
   };
 
+  const handleLogout = async () => {
+  try {
+    await signOut();
+    toast.success('Logged out successfully');
+    router.push('/');
+  } catch (error) {
+    console.error('Error signing out:', error);
+    toast.error('Error logging out');
+  }
+};
+
   const formatTimestamp = (timestamp) => {
     if (!timestamp) return '';
     
@@ -201,15 +220,16 @@ const fetchProductImages = async (productId) => {
 
   const getStatusBadge = (status) => {
     const statusStyles = {
-      'pending': 'bg-yellow-100 text-yellow-800',
-      'approved': 'bg-green-100 text-green-800',
-      'rejected': 'bg-red-100 text-red-800',
-      'available': 'bg-blue-100 text-blue-800',
-      'reserved': 'bg-orange-100 text-orange-800',
-      'sold': 'bg-gray-100 text-gray-800',
-      'not found': 'bg-red-100 text-red-800',
-      'error loading': 'bg-red-100 text-red-800'
-    };
+  'pending': 'bg-yellow-100 text-yellow-800',
+  'approved': 'bg-green-100 text-green-800',
+  'rejected': 'bg-red-100 text-red-800',
+  'acknowledged': 'bg-blue-100 text-blue-800', // Add this line
+  'available': 'bg-blue-100 text-blue-800',
+  'reserved': 'bg-orange-100 text-orange-800',
+  'sold': 'bg-gray-100 text-gray-800',
+  'not found': 'bg-red-100 text-red-800',
+  'error loading': 'bg-red-100 text-red-800'
+};
 
     return (
       <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${statusStyles[status] || 'bg-gray-100 text-gray-800'}`}>
@@ -220,7 +240,7 @@ const fetchProductImages = async (productId) => {
     );
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -270,7 +290,7 @@ const fetchProductImages = async (productId) => {
             </div>
             
             <button
-              onClick={() => signOut(auth)}
+              onClick={handleLogout}
               className="flex items-center px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200"
             >
               <ArrowRightOnRectangleIcon className="h-4 w-4 mr-2" />
@@ -338,14 +358,14 @@ const fetchProductImages = async (productId) => {
               ) : (
                 <div className="max-h-96 overflow-y-auto space-y-4">
                   {chatReports.map((report) => (
-                    <ChatReportItem 
-                      key={report.id} 
-                      report={report}
-                      formatTimestamp={formatTimestamp}
-                      getStatusBadge={getStatusBadge}
-                      onUpdate={fetchChatReports}
-                      onViewDetails={(item) => handleViewDetails(item, 'report')}
-                    />
+                   <ChatReportItem 
+  key={report.id} 
+  report={report}
+  formatTimestamp={formatTimestamp}
+  getStatusBadge={getStatusBadge}
+  onUpdate={fetchChatReports}
+  onViewDetails={(item) => handleViewDetails(item, 'report')}
+/>
                   ))}
                 </div>
               )}

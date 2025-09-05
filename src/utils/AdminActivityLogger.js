@@ -47,7 +47,7 @@ export const ACTIVITY_TYPES = {
 
 export const ACTIVITY_PAGES = {
   USER_MANAGEMENT: 'User Management',
-  REPORTS_MODERATION: 'Reports Moderation',
+  REPORTS_MODERATION: 'Reports Moderation', 
   MARKETPLACE_APPROVAL: 'Marketplace Approval',
   MARKETPLACE_ARCHIVE: 'Marketplace Archive',
   DASHBOARD: 'Dashboard'
@@ -68,13 +68,13 @@ export const getActivityDescription = (activityType, details) => {
 
     // Reports Moderation
     case ACTIVITY_TYPES.CHAT_REPORT_REVIEWED:
-      return `Reviewed chat report for: ${details.productName || 'Unknown Product'}`;
+      return `Reviewed reported user: ${details.reportedUser || 'Unknown User'}`;
     case ACTIVITY_TYPES.CHAT_REPORT_RESOLVED:
-      return `Resolved chat report for: ${details.productName || 'Unknown Product'}`;
+      return `Approved reported user: ${details.reportedUser || 'Unknown User'}`;
     case ACTIVITY_TYPES.CHAT_REPORT_DISMISSED:
-      return `Dismissed chat report for: ${details.productName || 'Unknown Product'}`;
+      return `Dismissed reported user: ${details.reportedUser || 'Unknown User'}`;
     case ACTIVITY_TYPES.CHAT_REMOVED_BY_ADMIN:
-      return `Removed chat for product: ${details.productName || 'Unknown Product'}`;
+      return `Acknowledged chat removal by: ${details.removedBy || 'Unknown User'}`;
     case ACTIVITY_TYPES.CHAT_RESTORED:
       return `Restored chat for product: ${details.productName || 'Unknown Product'}`;
 
@@ -112,9 +112,9 @@ export const getActivityStyle = (activityType) => {
     case ACTIVITY_TYPES.CHAT_REPORT_REVIEWED:
     case ACTIVITY_TYPES.CHAT_REPORT_RESOLVED:
     case ACTIVITY_TYPES.CHAT_REPORT_DISMISSED:
-      return { color: 'text-purple-600', bgColor: 'bg-purple-100', icon: 'DocumentMagnifyingGlassIcon' };
+      return { color: 'text-red-600', bgColor: 'bg-red-100', icon: 'UserIcon' };
     case ACTIVITY_TYPES.CHAT_REMOVED_BY_ADMIN:
-      return { color: 'text-red-600', bgColor: 'bg-red-100', icon: 'ChatBubbleLeftRightIcon' };
+      return { color: 'text-orange-600', bgColor: 'bg-orange-100', icon: 'ChatBubbleLeftRightIcon' };
     case ACTIVITY_TYPES.CHAT_RESTORED:
       return { color: 'text-green-600', bgColor: 'bg-green-100', icon: 'ArrowUturnLeftIcon' };
 

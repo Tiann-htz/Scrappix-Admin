@@ -1,9 +1,9 @@
 // src/pages/dashboard.js
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/router';
-import { signOut } from 'firebase/auth';
-import { doc, getDoc, collection, getDocs, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
+import { collection, getDocs, query, where, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../lib/firebase';
 import ActivityIcon from '../components/ActivityIcon';
 import { getActivityDescription, getActivityStyle } from '../utils/AdminActivityLogger';
 import toast, { Toaster } from 'react-hot-toast';
@@ -16,11 +16,12 @@ import {
   ChartBarIcon,
   DocumentCheckIcon,
   EyeIcon,
-  BellIcon
+  BellIcon,
+  UserIcon
 } from '@heroicons/react/24/outline';
 
 export default function AdminDashboard() {
-  const [adminData, setAdminData] = useState(null);
+  const { user, adminData, loading: authLoading, signOut } = useAuth();
   const [stats, setStats] = useState({
     totalUsers: 0,
     pendingReports: 0,
@@ -33,41 +34,23 @@ export default function AdminDashboard() {
   const router = useRouter();
 
   useEffect(() => {
-    checkAdminAuth();
-    fetchDashboardStats();
-    
-    // Set up activities listener
-    const unsubscribe = fetchRecentActivities();
-    
-    // Cleanup listener on unmount
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
-  }, []);
-
-  const checkAdminAuth = async () => {
-    const user = auth.currentUser;
-    if (!user) {
+    if (!authLoading && !user) {
       router.push('/');
       return;
     }
-
-    try {
-      const adminDoc = await getDoc(doc(db, 'userAdmin', user.uid));
-      if (!adminDoc.exists() || adminDoc.data().role !== 'admin') {
-        toast.error('Unauthorized access');
-        await signOut(auth);
-        router.push('/');
-        return;
-      }
+    
+    if (user && adminData) {
+      fetchDashboardStats();
       
-      setAdminData(adminDoc.data());
-    } catch (error) {
-      console.error('Error checking admin auth:', error);
-      toast.error('Authentication error');
-      router.push('/');
+      // Set up activities listener
+      const unsubscribe = fetchRecentActivities();
+      
+      // Cleanup listener on unmount
+      return () => {
+        if (unsubscribe) unsubscribe();
+      };
     }
-  };
+  }, [user, adminData, authLoading, router]);
 
   const fetchDashboardStats = async () => {
     try {
@@ -100,7 +83,6 @@ export default function AdminDashboard() {
   };
 
   const fetchRecentActivities = () => {
-    const user = auth.currentUser;
     if (!user) return;
 
     try {
@@ -145,9 +127,23 @@ export default function AdminDashboard() {
     return date.toLocaleDateString();
   };
 
+ const getPageColorStyle = (page) => {
+  if (!page) return 'text-gray-500';
+  
+  const lowerPage = page.toLowerCase();
+  if (lowerPage.includes('marketplace')) {
+    return 'text-green-600 font-medium';
+  } else if (lowerPage.includes('reports') || lowerPage.includes('moderation')) {
+    return 'text-red-400 font-medium';
+  } else if (lowerPage.includes('dashboard')) {
+    return 'text-blue-600 font-medium';
+  }
+  return 'text-gray-600 font-medium';
+};
+
   const handleLogout = async () => {
     try {
-      await signOut(auth);
+      await signOut();
       toast.success('Logged out successfully');
       router.push('/');
     } catch (error) {
@@ -156,7 +152,7 @@ export default function AdminDashboard() {
     }
   };
 
-  if (isLoading) {
+  if (authLoading || isLoading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -307,7 +303,7 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Recent Activity */}
+       {/* Recent Activity */}
         <div className="mt-8 bg-white rounded-lg shadow-sm border border-gray-200">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">Recent Activity</h2>
@@ -346,13 +342,38 @@ export default function AdminDashboard() {
                               <div className="min-w-0 flex-1 pt-1.5 flex justify-between space-x-4">
                                 <div>
                                   <p className="text-sm text-gray-900">
-                                    {getActivityDescription(activity.activityType, activity.details)}
+                                    {activity.activityType === 'chat_report_resolved' || 
+                                     activity.activityType === 'chat_report_reviewed' || 
+                                     activity.activityType === 'chat_report_dismissed' ? (
+                                      <>
+                                        {activity.activityType === 'chat_report_resolved' ? 'Approved' : 
+                                         activity.activityType === 'chat_report_reviewed' ? 'Reviewed' : 'Dismissed'} reported user: <span className="font-semibold text-red-600">{activity.details?.reportedUser || 'Unknown User'}</span>
+                                      </>
+                                    ) : activity.activityType === 'chat_removed_by_admin' ? (
+                                      <>
+                                        Acknowledged chat removal by: <span className="font-semibold text-orange-600">{activity.details?.removedBy || 'Unknown User'}</span>
+                                      </>
+                                    ) : (
+                                      getActivityDescription(activity.activityType, activity.details)
+                                    )}
                                   </p>
                                   <div className="mt-1 space-y-1">
-                                    {activity.page && (
-                                      <p className="text-xs text-blue-600 font-medium">Page: {activity.page}</p>
+                                    {activity.details?.reportCategory && (
+                                      <p className="text-xs text-orange-600 font-medium">
+                                        Reported Reason: {activity.details.reportCategory}
+                                      </p>
                                     )}
-                                    {activity.details?.category && (
+                                    {activity.details?.productName && (
+                                      <p className="text-xs text-gray-600">
+                                        Product: {activity.details.productName}
+                                      </p>
+                                    )}
+                                    {activity.activityType === 'chat_removed_by_admin' && activity.details?.productStatus && (
+                                      <p className="text-xs text-blue-600 font-medium">
+                                        Product Status: {activity.details.productStatus.charAt(0).toUpperCase() + activity.details.productStatus.slice(1)}
+                                      </p>
+                                    )}
+                                    {activity.details?.category && !activity.details?.reportCategory && (
                                       <p className="text-xs text-gray-500">Category: {activity.details.category}</p>
                                     )}
                                     {activity.details?.price && (

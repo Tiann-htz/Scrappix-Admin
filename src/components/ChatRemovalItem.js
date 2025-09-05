@@ -1,15 +1,53 @@
-import { 
-  TrashIcon,
-  UserIcon,
-  ShoppingBagIcon
-} from '@heroicons/react/24/outline';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../lib/firebase';
+import { useAuth } from '../contexts/AuthContext';
+import toast from 'react-hot-toast';
+import { logAdminActivity, ACTIVITY_TYPES } from '../utils/AdminActivityLogger';
 
 export default function ChatRemovalItem({ removal, formatTimestamp, getStatusBadge, onUpdate, onViewDetails }) {
+  const { adminData } = useAuth();
+
+ const handleAcknowledgeRemoval = async (e) => {
+  e.stopPropagation(); // Prevent modal opening
   
-  const handleRemoveChat = () => {
-    // TODO: Implement remove chat functionality
-    console.log('Remove chat:', removal.id);
-  };
+  if (!adminData) {
+    toast.error('Admin data not available');
+    return;
+  }
+
+  try {
+    const removalRef = doc(db, 'chatRemovals', removal.id);
+    
+    await updateDoc(removalRef, {
+      status: 'acknowledged',
+      acknowledgedAt: serverTimestamp(),
+      acknowledgedBy: adminData.fullName
+    });
+
+  // Log admin activity
+await logAdminActivity({
+  activityType: ACTIVITY_TYPES.CHAT_REMOVED_BY_ADMIN,
+  description: `Acknowledged chat removal for product: ${removal.productName}`,
+  details: {
+    removalId: removal.id,
+    removedUser: removal.removedPersonName,
+    removedBy: removal.removedByUserName,
+    productName: removal.productName,
+    productStatus: removal.productStatus || 'unknown'
+  }
+});
+
+    toast.success(`Chat removal acknowledged for ${removal.productName}`);
+    
+    // Refresh the removals list
+    if (onUpdate) {
+      onUpdate();
+    }
+  } catch (error) {
+    console.error('Error acknowledging removal:', error);
+    toast.error('Failed to acknowledge removal. Please try again.');
+  }
+};
 
   const handleCheckUser = () => {
     // TODO: Implement check user functionality
@@ -30,10 +68,17 @@ export default function ChatRemovalItem({ removal, formatTimestamp, getStatusBad
       <div className="flex items-center justify-between">
         <div className="flex-1">
           {/* Removed Person - Main Highlight */}
-          <div className="mb-3">
-            <h3 className="text-lg font-bold text-orange-600 mb-1">{removal.removedPersonName}</h3>
-            <p className="text-sm text-gray-500">({removal.removedPersonRole})</p>
-          </div>
+<div className="mb-3">
+  <div className="flex items-center justify-between">
+    <div>
+      <h3 className="text-lg font-bold text-orange-600 mb-1">{removal.removedPersonName}</h3>
+      <p className="text-sm text-gray-500">({removal.removedPersonRole})</p>
+    </div>
+    <div className="ml-2 mr-8">
+      {getStatusBadge(removal.status || 'pending')}
+    </div>
+  </div>
+</div>
 
           {/* Key Details */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-sm">
@@ -53,11 +98,16 @@ export default function ChatRemovalItem({ removal, formatTimestamp, getStatusBad
         <div className="flex-shrink-0 ml-4">
           <div className="flex space-x-2">
             <button
-              onClick={handleRemoveChat}
-              className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs font-medium rounded-md transition-colors duration-200"
-            >
-              Remove
-            </button>
+  onClick={handleAcknowledgeRemoval}
+  disabled={removal.status === 'acknowledged'}
+  className={`px-3 py-1.5 text-white text-xs font-medium rounded-md transition-colors duration-200 ${
+    removal.status === 'acknowledged'
+      ? 'bg-gray-400 cursor-not-allowed'
+      : 'bg-green-500 hover:bg-green-600'
+  }`}
+>
+  {removal.status === 'acknowledged' ? 'Acknowledged' : 'Acknowledge'}
+</button>
             <button
               onClick={handleCheckUser}
               className="px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white text-xs font-medium rounded-md transition-colors duration-200"
