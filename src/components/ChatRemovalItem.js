@@ -1,11 +1,15 @@
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { logAdminActivity, ACTIVITY_TYPES } from '../utils/AdminActivityLogger';
+import UserProfileModal from './UserProfileModal';
 
 export default function ChatRemovalItem({ removal, formatTimestamp, getStatusBadge, onUpdate, onViewDetails }) {
   const { adminData } = useAuth();
+  const [showUserModal, setShowUserModal] = useState(false);
+const [selectedUserId, setSelectedUserId] = useState(null);
 
  const handleAcknowledgeRemoval = async (e) => {
   e.stopPropagation(); // Prevent modal opening
@@ -49,10 +53,11 @@ await logAdminActivity({
   }
 };
 
-  const handleCheckUser = () => {
-    // TODO: Implement check user functionality
-    console.log('Check user:', removal.removedByUserId);
-  };
+const handleCheckUser = (e) => {
+  e?.stopPropagation(); // Safe check for event
+  setSelectedUserId(removal.removedPersonId);
+  setShowUserModal(true);
+};
 
   const handleItemClick = (e) => {
     // Prevent modal opening when clicking action buttons
@@ -108,15 +113,26 @@ await logAdminActivity({
 >
   {removal.status === 'acknowledged' ? 'Acknowledged' : 'Acknowledge'}
 </button>
-            <button
-              onClick={handleCheckUser}
-              className="px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white text-xs font-medium rounded-md transition-colors duration-200"
-            >
-              Check User
-            </button>
+           <button
+  onClick={handleCheckUser}
+  className="px-3 py-1.5 bg-gray-500 hover:bg-gray-600 text-white text-xs font-medium rounded-md transition-colors duration-200"
+>
+  Check User
+</button>
           </div>
         </div>
       </div>
+      {/* User Profile Modal */}
+{showUserModal && (
+  <UserProfileModal
+    userId={selectedUserId}
+    isOpen={showUserModal}
+    onClose={() => {
+      setShowUserModal(false);
+      setSelectedUserId(null);
+    }}
+  />
+)}
     </div>
   );
 }

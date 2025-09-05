@@ -321,7 +321,7 @@ export default function AdminDashboard() {
                 <p className="text-sm text-gray-400 mt-2">Activity will appear here as you perform admin actions</p>
               </div>
             ) : (
-              <div className="max-h-96 overflow-y-auto scrollbar-hide">
+              <div className="max-h-76 overflow-y-auto scrollbar-hide">
                 <div className="flow-root">
                   <ul className="-mb-8">
                     {recentActivities.map((activity, activityIdx) => {
