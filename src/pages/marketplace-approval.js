@@ -815,107 +815,109 @@ const handleClearAllFilters = () => {
               >
                 <ArrowLeftIcon className="h-5 w-5" />
               </button>
-              <ShieldCheckIcon className="h-8 w-8 text-green-500 mr-3" />
+              <ShieldCheckIcon className="h-6 w-6 sm:h-8 sm:w-8 text-green-500 mr-2 sm:mr-3" />
               <div>
-                <h1 className="text-2xl font-bold text-green-800">Marketplace Approval</h1>
-                <p className="text-sm text-gray-600">Review and approve marketplace items</p>
+                <h1 className="text-lg sm:text-2xl font-bold text-green-800">Marketplace Approval</h1>
+                <p className="text-xs sm:text-sm text-gray-600 hidden sm:block">Review and approve marketplace items</p>
               </div>
             </div>
             
-            
-            <div className="flex items-center space-x-4">
-  <button
-    onClick={() => router.push('/marketplace-archive')}
-    className="flex items-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200"
-  >
-    <ArchiveBoxIcon className="h-4 w-4 mr-2" />
-    Archive
-  </button>
-  <button
-    onClick={handleLogout}
-    className="flex items-center px-4 py-2 text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200"
-  >
-    <ArrowRightOnRectangleIcon className="h-4 w-4 mr-2" />
-    Logout
-  </button>
-</div>
+            <div className="flex items-center space-x-2 sm:space-x-4">
+              <button
+                onClick={() => router.push('/marketplace-archive')}
+                className="flex items-center px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors duration-200"
+              >
+                <ArchiveBoxIcon className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Archive</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="flex items-center px-2 sm:px-4 py-2 text-xs sm:text-sm font-medium text-white bg-red-500 hover:bg-red-600 rounded-lg transition-colors duration-200"
+              >
+                <ArrowRightOnRectangleIcon className="h-4 w-4 mr-1 sm:mr-2" />
+                <span className="hidden sm:inline">Logout</span>
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       {/* Search Bar and Filter */}
-<div className="mb-6">
-  <div className="bg-gray-50 rounded-lg p-4">
-    <div className="flex gap-4 items-center justify-center">
-      {/* Search Input */}
-      <div className="relative flex-2 max-w-md sm:max-w-xl">
-        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-          <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+      <div className="px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div className="bg-gray-50 rounded-lg p-3 sm:p-4">
+          <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 items-stretch sm:items-center justify-center">
+            {/* Search Input */}
+            <div className="relative flex-1 sm:flex-2 max-w-full sm:max-w-md lg:max-w-xl">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search..."
+                className="block w-full pl-10 pr-3 py-2 sm:py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-700 text-sm sm:text-base"
+              />
+              {searchTerm && (
+                <button
+                  onClick={() => setSearchTerm('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <XCircleIcon className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors duration-200" />
+                </button>
+              )}
+            </div>
+
+            {/* Filter and Clear Buttons Container */}
+            <div className="flex gap-2 sm:gap-3">
+              {/* Filter Button */}
+              <button
+                onClick={openFilterModal}
+                className={`flex items-center justify-center px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium rounded-lg transition-colors duration-200 flex-1 sm:flex-initial ${
+                  hasActiveFilters
+                    ? 'bg-green-500 text-white hover:bg-green-600'
+                    : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                }`}
+              >
+                <FunnelIcon className="h-4 sm:h-5 w-4 sm:w-5 mr-1 sm:mr-2" />
+                <span>Filter</span>
+                {hasActiveFilters && (
+                  <span className="ml-1 sm:ml-2 bg-white text-green-600 text-xs px-1 sm:px-2 py-0.5 sm:py-1 rounded-full">
+                    Active
+                  </span>
+                )}
+              </button>
+
+              {/* Clear All Filters Button */}
+              {(hasActiveFilters || searchTerm) && (
+                <button
+                  onClick={handleClearAllFilters}
+                  className="px-3 sm:px-4 py-2 sm:py-3 text-xs sm:text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors duration-200 flex-1 sm:flex-initial"
+                >
+                  Clear All
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Search/Filter Results Info */}
+          {(searchTerm || hasActiveFilters) && (
+            <div className="mt-3 text-center">
+              <p className="text-xs sm:text-sm text-gray-600">
+                {activeTab === 'pending' 
+                  ? `Found ${filteredPendingItems.length} pending item${filteredPendingItems.length !== 1 ? 's' : ''}`
+                  : `Found ${filteredAvailableItems.length} approved item${filteredAvailableItems.length !== 1 ? 's' : ''}`
+                }
+                {searchTerm && ` matching "${searchTerm}"`}
+                {hasActiveFilters && ` with applied filters`}
+              </p>
+            </div>
+          )}
         </div>
-        <input
-          type="text"
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          placeholder="Search..."
-          className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-green-500 focus:border-green-500 text-gray-700 text-sm sm:text-base"
-        />
-        {searchTerm && (
-          <button
-            onClick={() => setSearchTerm('')}
-            className="absolute inset-y-0 right-0 pr-3 flex items-center"
-          >
-            <XCircleIcon className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors duration-200" />
-          </button>
-        )}
       </div>
-
-      {/* Filter Button */}
-      <button
-        onClick={openFilterModal}
-        className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
-          hasActiveFilters
-            ? 'bg-green-500 text-white hover:bg-green-600'
-            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-        }`}
-      >
-        <FunnelIcon className="h-5 w-5 mr-2" />
-        Filter
-        {hasActiveFilters && (
-          <span className="ml-2 bg-white text-green-600 text-xs px-2 py-1 rounded-full">
-            Active
-          </span>
-        )}
-      </button>
-
-      {/* Clear All Filters Button */}
-      {(hasActiveFilters || searchTerm) && (
-        <button
-          onClick={handleClearAllFilters}
-          className="px-4 py-3 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors duration-200"
-        >
-          Clear All
-        </button>
-      )}
-    </div>
-
-    {/* Search/Filter Results Info */}
-    {(searchTerm || hasActiveFilters) && (
-      <div className="mt-3 text-center">
-        <p className="text-sm text-gray-600">
-          {activeTab === 'pending' 
-            ? `Found ${filteredPendingItems.length} pending item${filteredPendingItems.length !== 1 ? 's' : ''}`
-            : `Found ${filteredAvailableItems.length} approved item${filteredAvailableItems.length !== 1 ? 's' : ''}`
-          }
-          {searchTerm && ` matching "${searchTerm}"`}
-          {hasActiveFilters && ` with applied filters`}
-        </p>
-      </div>
-    )}
-  </div>
-</div>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+      <main className="w-full mx-auto pb-8 px-4 sm:px-6 lg:px-8 sm:max-w-7xl">
         {/* Tabs */}
 <div className="mb-6">
   <div className="border-b border-gray-200">

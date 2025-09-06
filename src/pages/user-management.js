@@ -82,10 +82,11 @@ export default function UserManagement() {
           }).length;
 
           // Count sold items by this user
-          const soldItems = transactionsSnapshot.docs.filter(transactionDoc => {
-            const transactionData = transactionDoc.data();
-            return transactionData.sellerId === userData.id && transactionData.status === 'completed';
-          }).length;
+const soldItems = transactionsSnapshot.docs.filter(transactionDoc => {
+  const transactionData = transactionDoc.data();
+  return (transactionData.sellerId === userData.id || transactionData.sellerld === userData.id) && 
+         (transactionData.status === 'completed' || transactionData.status === 'sold');
+}).length;
 
           return {
             ...userData,
