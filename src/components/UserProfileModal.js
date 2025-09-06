@@ -97,22 +97,30 @@ export default function UserProfileModal({ userId, isOpen, onClose }) {
   if (!isOpen) return null;
 
   return (
-    <div 
-      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
-      style={{ zIndex: 9999 }}
-      onClick={onClose}
-    >
+  <div 
+className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 cursor-default"    style={{ zIndex: 9999 }}
+    onClick={(e) => {
+      e.stopPropagation();
+      if (e.target === e.currentTarget) {
+        onClose();
+      }
+    }}
+  >
       <div 
-        className="bg-white rounded-lg w-full max-h-[90vh] overflow-y-auto max-w-sm md:max-w-4xl"
-        onClick={(e) => e.stopPropagation()}
-      >
+  className="bg-white rounded-lg w-full max-h-[90vh] overflow-y-auto max-w-sm md:max-w-4xl cursor-default"
+  onClick={(e) => e.stopPropagation()}
+>
         {/* Header */}
         <div className="flex items-center justify-between p-4 md:p-6 border-b border-gray-200">
           <h3 className="text-lg md:text-xl font-semibold text-gray-900">User Profile</h3>
           <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200"
-          >
+  onClick={(e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onClose();
+  }}
+  className="p-2 hover:bg-gray-100 rounded-full transition-colors duration-200 cursor-pointer"
+>
             <XMarkIcon className="h-5 w-5 md:h-6 md:w-6 text-gray-500" />
           </button>
         </div>
@@ -317,16 +325,6 @@ export default function UserProfileModal({ userId, isOpen, onClose }) {
               <p className="text-gray-500">User profile not found</p>
             </div>
           )}
-        </div>
-
-        {/* Footer */}
-        <div className="px-4 md:px-8 py-4 md:py-6 border-t border-gray-200">
-          <button
-            onClick={onClose}
-            className="w-full md:w-auto md:px-8 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-lg transition-colors duration-200"
-          >
-            Close
-          </button>
         </div>
       </div>
     </div>

@@ -266,9 +266,12 @@ export default function AdminDashboard() {
               <UserGroupIcon className="h-12 w-12 text-blue-500 mx-auto mb-4" />
               <h3 className="text-lg font-semibold text-gray-900 mb-2">User Management</h3>
               <p className="text-gray-600 mb-4">Manage user accounts and permissions</p>
-              <button className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors duration-200">
-                Manage Users
-              </button>
+              <button 
+  onClick={() => router.push('/user-management')}
+  className="w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors duration-200"
+>
+  Manage Users
+</button>
             </div>
           </div>
 

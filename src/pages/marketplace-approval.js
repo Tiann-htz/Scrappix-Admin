@@ -845,7 +845,7 @@ const handleClearAllFilters = () => {
 
       {/* Search Bar and Filter */}
 <div className="mb-6">
-  <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+  <div className="bg-gray-50 rounded-lg p-4">
     <div className="flex gap-4 items-center justify-center">
       {/* Search Input */}
       <div className="relative flex-2 max-w-md sm:max-w-xl">
@@ -875,7 +875,7 @@ const handleClearAllFilters = () => {
         className={`flex items-center px-4 py-3 text-sm font-medium rounded-lg transition-colors duration-200 ${
           hasActiveFilters
             ? 'bg-green-500 text-white hover:bg-green-600'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
         }`}
       >
         <FunnelIcon className="h-5 w-5 mr-2" />

@@ -3,7 +3,6 @@ import { useRouter } from 'next/router';
 import { doc, getDoc, collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { useAuth } from '../contexts/AuthContext';
-import { logAdminActivity, ACTIVITY_TYPES } from '../utils/AdminActivityLogger';
 import ChatReportItem from '../components/ChatReportItem';
 import ChatRemovalItem from '../components/ChatRemovalItem';
 import ReportsModal from '../components/ReportsModal';
@@ -14,7 +13,8 @@ import {
   ExclamationTriangleIcon,
   TrashIcon,
   ArrowRightOnRectangleIcon,
-  BellIcon
+  BellIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 
 export default function ReportsApproval() {
@@ -28,6 +28,9 @@ const { user, adminData, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
   const [selectedItem, setSelectedItem] = useState(null);
   const [modalType, setModalType] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [filteredChatReports, setFilteredChatReports] = useState([]);
+  const [filteredChatRemovals, setFilteredChatRemovals] = useState([]);
 
  useEffect(() => {
   if (!authLoading && !user) {
@@ -39,6 +42,8 @@ const { user, adminData, loading: authLoading, signOut } = useAuth();
     fetchChatReports();
     fetchChatRemovals();
     setIsLoading(false);
+    setFilteredChatReports(chatReports);
+    setFilteredChatRemovals(chatRemovals);
   }
 }, [user, adminData, authLoading, router]);
 
@@ -129,6 +134,7 @@ const fetchProductImages = async (productId) => {
       );
 
       setChatReports(reportsData);
+      setFilteredChatReports(reportsData);
     } catch (error) {
       console.error('Error fetching chat reports:', error);
       toast.error('Error loading chat reports');
@@ -176,6 +182,7 @@ const fetchProductImages = async (productId) => {
       );
 
       setChatRemovals(removalsData);
+      setFilteredChatRemovals(removalsData);
     } catch (error) {
       console.error('Error fetching chat removals:', error);
       toast.error('Error loading chat removals');
@@ -223,7 +230,7 @@ const fetchProductImages = async (productId) => {
   'pending': 'bg-yellow-100 text-yellow-800',
   'approved': 'bg-green-100 text-green-800',
   'rejected': 'bg-red-100 text-red-800',
-  'acknowledged': 'bg-blue-100 text-blue-800', // Add this line
+  'acknowledged': 'bg-blue-100 text-blue-800',
   'available': 'bg-blue-100 text-blue-800',
   'reserved': 'bg-orange-100 text-orange-800',
   'sold': 'bg-gray-100 text-gray-800',
@@ -238,6 +245,42 @@ const fetchProductImages = async (productId) => {
          status.charAt(0).toUpperCase() + status.slice(1)}
       </span>
     );
+  };
+
+  // Search functionality
+  const filterData = (query) => {
+    const lowercaseQuery = query.toLowerCase().trim();
+    
+    if (!lowercaseQuery) {
+      setFilteredChatReports(chatReports);
+      setFilteredChatRemovals(chatRemovals);
+      return;
+    }
+
+    // Filter chat reports
+    const filteredReports = chatReports.filter(report => 
+      report.reportedPersonName?.toLowerCase().includes(lowercaseQuery) ||
+      report.reportedByUserName?.toLowerCase().includes(lowercaseQuery) ||
+      report.productName?.toLowerCase().includes(lowercaseQuery) ||
+      report.reportCategory?.toLowerCase().includes(lowercaseQuery)
+    );
+
+    // Filter chat removals
+    const filteredRemovals = chatRemovals.filter(removal => 
+      removal.removedPersonName?.toLowerCase().includes(lowercaseQuery) ||
+      removal.removedByUserName?.toLowerCase().includes(lowercaseQuery) ||
+      removal.productName?.toLowerCase().includes(lowercaseQuery)
+    );
+
+    setFilteredChatReports(filteredReports);
+    setFilteredChatRemovals(filteredRemovals);
+  };
+
+  // Search handler
+  const handleSearchChange = (e) => {
+    const query = e.target.value;
+    setSearchQuery(query);
+    filterData(query);
   };
 
   if (authLoading || isLoading) {
@@ -273,14 +316,14 @@ const fetchProductImages = async (productId) => {
 
       {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="w-full px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center py-4">
             <div className="flex items-center">
               <button
                 onClick={() => router.push('/dashboard')}
-                className="mr-4 p-2 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+                className="mr-4 p-2 text-gray-400 hover:text-gray-600 rounded-lg hover:bg-gray-100 transition-colors duration-200"
               >
-                <ArrowLeftIcon className="h-6 w-6 text-gray-600" />
+                <ArrowLeftIcon className="h-5 w-5" />
               </button>
               <ShieldCheckIcon className="h-8 w-8 text-red-500 mr-3" />
               <div>
@@ -300,15 +343,72 @@ const fetchProductImages = async (productId) => {
         </div>
       </header>
 
+      {/* Search Bar */}
+      <div className="mb-6">
+        <div className="bg-gray-50 rounded-lg p-4">
+          <div className="flex gap-4 items-center justify-center">
+            {/* Search Input */}
+            <div className="relative flex-2 max-w-md sm:max-w-xl">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <MagnifyingGlassIcon className="h-5 w-5 text-gray-400" />
+              </div>
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={handleSearchChange}
+                placeholder="Search reports, users, or products..."
+                className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-2 focus:ring-red-500 focus:border-red-500 text-gray-700 text-sm sm:text-base"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery('');
+                    filterData('');
+                  }}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                >
+                  <MagnifyingGlassIcon className="h-5 w-5 text-gray-400 hover:text-gray-600 transition-colors duration-200" />
+                </button>
+              )}
+            </div>
+
+            {/* Clear Search Button */}
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  filterData('');
+                }}
+                className="px-4 py-3 text-sm font-medium text-red-600 bg-red-50 hover:bg-red-100 rounded-lg transition-colors duration-200"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Search Results Info */}
+          {searchQuery && (
+            <div className="mt-3 text-center">
+              <p className="text-sm text-gray-600">
+                {activeTab === 'reports' 
+                  ? `Found ${filteredChatReports.length} report${filteredChatReports.length !== 1 ? 's' : ''}`
+                  : `Found ${filteredChatRemovals.length} removal${filteredChatRemovals.length !== 1 ? 's' : ''}`
+                } matching "${searchQuery}"
+              </p>
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Main Content */}
       <main className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* Tabs */}
-        <div className="mb-8">
+        <div className="mb-6">
           <div className="border-b border-gray-200">
             <nav className="-mb-px flex space-x-8">
               <button
                 onClick={() => setActiveTab('reports')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 whitespace-nowrap ${
                   activeTab === 'reports'
                     ? 'border-red-500 text-red-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -316,12 +416,12 @@ const fetchProductImages = async (productId) => {
               >
                 <div className="flex items-center">
                   <ExclamationTriangleIcon className="h-5 w-5 mr-2" />
-                  Chat Reports ({chatReports.length})
+                  Chat Reports ({searchQuery ? filteredChatReports.length : chatReports.length})
                 </div>
               </button>
               <button
                 onClick={() => setActiveTab('removals')}
-                className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 ${
+                className={`py-2 px-1 border-b-2 font-medium text-sm transition-colors duration-200 whitespace-nowrap ${
                   activeTab === 'removals'
                     ? 'border-red-500 text-red-600'
                     : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
@@ -329,7 +429,7 @@ const fetchProductImages = async (productId) => {
               >
                 <div className="flex items-center">
                   <TrashIcon className="h-5 w-5 mr-2" />
-                  Chat Removals ({chatRemovals.length})
+                  Chat Removals ({searchQuery ? filteredChatRemovals.length : chatRemovals.length})
                 </div>
               </button>
             </nav>
@@ -349,23 +449,33 @@ const fetchProductImages = async (productId) => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto mb-4"></div>
                   <p className="text-gray-500">Loading chat reports...</p>
                 </div>
-              ) : chatReports.length === 0 ? (
+              ) : (searchQuery ? filteredChatReports.length === 0 : chatReports.length === 0) ? (
                 <div className="text-center py-8">
-                  <ExclamationTriangleIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No chat reports found</p>
-                  <p className="text-sm text-gray-400 mt-2">Reported chats will appear here</p>
+                  {searchQuery ? (
+                    <>
+                      <MagnifyingGlassIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">No reports match your search</p>
+                      <p className="text-sm text-gray-400 mt-2">Try adjusting your search terms</p>
+                    </>
+                  ) : (
+                    <>
+                      <ExclamationTriangleIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">No chat reports found</p>
+                      <p className="text-sm text-gray-400 mt-2">Reported chats will appear here</p>
+                    </>
+                  )}
                 </div>
               ) : (
-                <div className="max-h-96 overflow-y-auto space-y-4">
-                  {chatReports.map((report) => (
-                   <ChatReportItem 
-  key={report.id} 
-  report={report}
-  formatTimestamp={formatTimestamp}
-  getStatusBadge={getStatusBadge}
-  onUpdate={fetchChatReports}
-  onViewDetails={(item) => handleViewDetails(item, 'report')}
-/>
+                <div className="max-h-[600px] overflow-y-auto space-y-3">
+                  {(searchQuery ? filteredChatReports : chatReports).map((report) => (
+                    <ChatReportItem 
+                      key={report.id} 
+                      report={report}
+                      formatTimestamp={formatTimestamp}
+                      getStatusBadge={getStatusBadge}
+                      onUpdate={fetchChatReports}
+                      onViewDetails={(item) => handleViewDetails(item, 'report')}
+                    />
                   ))}
                 </div>
               )}
@@ -383,15 +493,25 @@ const fetchProductImages = async (productId) => {
                   <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-red-500 mx-auto mb-4"></div>
                   <p className="text-gray-500">Loading chat removals...</p>
                 </div>
-              ) : chatRemovals.length === 0 ? (
+              ) : (searchQuery ? filteredChatRemovals.length === 0 : chatRemovals.length === 0) ? (
                 <div className="text-center py-8">
-                  <TrashIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-500">No chat removals found</p>
-                  <p className="text-sm text-gray-400 mt-2">Removed chats will appear here</p>
+                  {searchQuery ? (
+                    <>
+                      <MagnifyingGlassIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">No removals match your search</p>
+                      <p className="text-sm text-gray-400 mt-2">Try adjusting your search terms</p>
+                    </>
+                  ) : (
+                    <>
+                      <TrashIcon className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                      <p className="text-gray-500">No chat removals found</p>
+                      <p className="text-sm text-gray-400 mt-2">Removed chats will appear here</p>
+                    </>
+                  )}
                 </div>
               ) : (
-                <div className="max-h-96 overflow-y-auto space-y-4">
-                  {chatRemovals.map((removal) => (
+                <div className="max-h-[600px] overflow-y-auto space-y-3">
+                  {(searchQuery ? filteredChatRemovals : chatRemovals).map((removal) => (
                     <ChatRemovalItem 
                       key={removal.id} 
                       removal={removal}
@@ -417,7 +537,7 @@ const fetchProductImages = async (productId) => {
             getStatusBadge={getStatusBadge}
           />
         )}
-      </main>      
+      </main>
     </div>
   );
 }

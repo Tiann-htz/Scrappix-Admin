@@ -8,6 +8,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@headlessui/react": "^2.2.7",
     "@heroicons/react": "^2.2.0",
     "firebase": "^12.2.1",
     "next": "15.5.2",
